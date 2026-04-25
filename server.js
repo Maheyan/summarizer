@@ -136,7 +136,7 @@ async function processPdf(pdfPath) {
 }
 
 // ----- Routes -----
-app.use(express.static('public'));
+app.use(express.static('.'));
 
 app.post('/api/summarize', upload.single('pdf'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No PDF uploaded' });
