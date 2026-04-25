@@ -1,9 +1,18 @@
 import express from 'express';
 import multer from 'multer';
-import { pdfToPng } from 'pdf-to-png-converter';
+import canvasPkg from 'canvas';
 import fs from 'fs/promises';
 import path from 'path';
 import dotenv from 'dotenv';
+
+// pdfjs-dist v4 needs these browser globals; provide them before the module loads
+const { DOMMatrix, ImageData, Path2D } = canvasPkg;
+globalThis.DOMMatrix ??= DOMMatrix;
+globalThis.ImageData ??= ImageData;
+globalThis.Path2D ??= Path2D;
+
+// Dynamic import so pdfjs-dist is evaluated after globals are set above
+const { pdfToPng } = await import('pdf-to-png-converter');
 
 dotenv.config();
 
