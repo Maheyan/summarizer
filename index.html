@@ -172,6 +172,43 @@
     .file-pill-remove:hover { color: var(--red); background: var(--red-bg); }
     .file-pill-remove svg { width: 16px; height: 16px; }
 
+    /* Model selector */
+    .model-selector {
+      margin-top: 16px;
+    }
+    .model-selector-label {
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+    .model-options {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 8px;
+    }
+    .model-option input[type="radio"] { display: none; }
+    .model-option label {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      padding: 10px 14px;
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      cursor: pointer;
+      background: var(--bg);
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .model-option input:checked + label {
+      border-color: var(--indigo);
+      background: var(--indigo-light);
+    }
+    .model-option label:hover { border-color: var(--indigo-mid); }
+    .model-name { font-size: 13px; font-weight: 600; color: var(--text); }
+    .model-desc { font-size: 11px; color: var(--text-muted); }
+
     /* Submit button */
     .submit-btn {
       display: flex;
@@ -476,6 +513,13 @@
       </button>
     </div>
 
+    <div class="model-selector">
+      <div class="model-selector-label">Summarization model</div>
+      <div class="model-options" id="modelOptions">
+        <!-- populated by JS -->
+      </div>
+    </div>
+
     <button class="submit-btn" id="submitBtn" disabled>
       <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
         <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/>
@@ -532,8 +576,23 @@
   const errorBar      = document.getElementById('errorBar');
   const errorText     = document.getElementById('errorText');
   const resultsEl     = document.getElementById('results');
+  const modelOptions  = document.getElementById('modelOptions');
 
   let selectedFile = null;
+
+  // ── Load models ──
+  (async () => {
+    const models = await fetch('/api/models').then((r) => r.json()).catch(() => []);
+    modelOptions.innerHTML = models.map((m, i) => `
+      <div class="model-option">
+        <input type="radio" name="model" id="model-${m.key}" value="${m.key}" ${i === 0 ? 'checked' : ''}>
+        <label for="model-${m.key}">
+          <span class="model-name">${m.label}</span>
+          <span class="model-desc">${m.description}</span>
+        </label>
+      </div>
+    `).join('');
+  })();
 
   // ── File selection ──
   function setFile(file) {
@@ -637,8 +696,10 @@
     pageChipsEl.innerHTML = '';
     progressBarWrap.style.display = 'none';
 
+    const selectedModel = document.querySelector('input[name="model"]:checked')?.value || 'bart';
     const formData = new FormData();
     formData.append('pdf', selectedFile);
+    formData.append('model', selectedModel);
 
     try {
       const res = await fetch('/api/summarize', { method: 'POST', body: formData });
@@ -658,7 +719,7 @@
         },
         summarizing() {
           progressTitle.textContent = 'Summarizing…';
-          progressSub.textContent   = 'Running BART-large-CNN…';
+          progressSub.textContent   = 'Running Gemini…';
           progressBar.style.width   = '100%';
         },
         done(d) {
