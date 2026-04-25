@@ -692,11 +692,11 @@
     submitBtn.disabled = true;
     resultsEl.innerHTML = '';
     hideError();
-    showProgress('Uploading PDF…');
     pageChipsEl.innerHTML = '';
     progressBarWrap.style.display = 'none';
+    showProgress('Preparing upload…');
 
-    const selectedModel = document.querySelector('input[name="model"]:checked')?.value || 'bart';
+    const selectedModel = document.querySelector('input[name="model"]:checked')?.value || 'flash2';
     const formData = new FormData();
     formData.append('pdf', selectedFile);
     formData.append('model', selectedModel);
@@ -709,22 +709,18 @@
       }
 
       await parseSSEStream(res, {
-        pdf_loaded(d) {
-          showProgress('Extracting pages…', `0 of ${d.pageCount} pages extracted`);
-          buildChips(d.pageCount);
+        uploading() {
+          showProgress('Uploading to Gemini…', 'Sending your PDF to Gemini Files API');
+          progressBarWrap.style.display = 'block';
+          progressBar.style.width = '30%';
         },
-        page_done(d) {
-          markChipDone(d.page, d.pageCount);
-          progressTitle.textContent = 'Extracting pages…';
-        },
-        summarizing() {
-          progressTitle.textContent = 'Summarizing…';
-          progressSub.textContent   = 'Running Gemini…';
-          progressBar.style.width   = '100%';
+        analyzing() {
+          showProgress('Gemini is reading your document…', 'Extracting text, OCR, and generating summary');
+          progressBar.style.width = '70%';
         },
         done(d) {
-          hideProgress();
-          renderResults(d);
+          progressBar.style.width = '100%';
+          setTimeout(() => { hideProgress(); renderResults(d); }, 300);
         },
         error(d) { throw new Error(d.message); },
       });
