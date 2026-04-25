@@ -3,206 +3,733 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Class PDF Summarizer</title>
+  <title>LectureLens — PDF Summarizer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <style>
-    * { box-sizing: border-box; }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --indigo: #6366f1;
+      --indigo-dark: #4f46e5;
+      --indigo-light: #eef2ff;
+      --indigo-mid: #c7d2fe;
+      --text: #111827;
+      --text-muted: #6b7280;
+      --border: #e5e7eb;
+      --surface: #ffffff;
+      --bg: #f9fafb;
+      --red: #ef4444;
+      --red-bg: #fef2f2;
+      --green: #10b981;
+      --radius: 14px;
+      --shadow: 0 1px 3px rgba(0,0,0,0.07), 0 4px 16px rgba(0,0,0,0.05);
+      --shadow-lg: 0 8px 32px rgba(99,102,241,0.12);
+    }
+
+    html { scroll-behavior: smooth; }
+
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      max-width: 820px;
-      margin: 40px auto;
-      padding: 0 20px;
-      background: #fafafa;
-      color: #1a1a1a;
+      font-family: 'Inter', -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
     }
-    h1 { font-size: 28px; margin-bottom: 4px; }
-    .sub { color: #666; margin-bottom: 28px; font-size: 14px; }
 
-    .drop {
-      border: 2px dashed #c0c0c0;
-      border-radius: 12px;
-      padding: 48px 20px;
+    /* ── Header ── */
+    header {
+      background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+      padding: 48px 24px 56px;
       text-align: center;
-      background: #fff;
-      cursor: pointer;
-      transition: all 0.15s;
+      position: relative;
+      overflow: hidden;
     }
-    .drop:hover, .drop.drag { border-color: #4f46e5; background: #f5f3ff; }
-    .drop input { display: none; }
-    .drop p { margin: 8px 0; color: #555; }
-    .drop strong { color: #4f46e5; }
-
-    button {
-      background: #4f46e5;
+    header::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.04'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+    }
+    .header-inner { position: relative; max-width: 640px; margin: 0 auto; }
+    .logo-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(255,255,255,0.15);
+      border: 1px solid rgba(255,255,255,0.25);
       color: #fff;
-      border: none;
-      padding: 12px 24px;
-      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 5px 14px;
+      border-radius: 100px;
+      margin-bottom: 20px;
+    }
+    header h1 {
+      font-size: clamp(28px, 5vw, 40px);
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: -0.5px;
+      line-height: 1.2;
+      margin-bottom: 12px;
+    }
+    header p {
       font-size: 15px;
+      color: rgba(255,255,255,0.75);
+      line-height: 1.6;
+    }
+
+    /* ── Main content ── */
+    main {
+      max-width: 780px;
+      margin: -28px auto 60px;
+      padding: 0 20px;
+    }
+
+    /* ── Upload card ── */
+    .upload-card {
+      background: var(--surface);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-lg);
+      padding: 32px;
+      margin-bottom: 24px;
+    }
+
+    .drop-zone {
+      display: block;
+      overflow: hidden;
+      border: 2px dashed var(--indigo-mid);
+      border-radius: 10px;
+      padding: 44px 24px;
+      text-align: center;
       cursor: pointer;
+      transition: border-color 0.2s, background 0.2s, transform 0.15s;
+      position: relative;
+      background: var(--indigo-light);
+    }
+    .drop-zone:hover, .drop-zone.drag {
+      border-color: var(--indigo);
+      background: #e0e7ff;
+      transform: scale(1.005);
+    }
+    .drop-zone input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+    }
+    .drop-icon {
+      width: 52px;
+      height: 52px;
+      background: var(--indigo);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 16px;
+      box-shadow: 0 4px 12px rgba(99,102,241,0.35);
+    }
+    .drop-icon svg { width: 26px; height: 26px; color: #fff; }
+    .drop-zone h3 { font-size: 16px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
+    .drop-zone p  { font-size: 13px; color: var(--text-muted); }
+    .drop-zone span { color: var(--indigo); font-weight: 600; }
+
+    /* File pill */
+    .file-pill {
+      display: none;
+      align-items: center;
+      gap: 12px;
+      background: var(--indigo-light);
+      border: 1px solid var(--indigo-mid);
+      border-radius: 10px;
+      padding: 12px 16px;
       margin-top: 16px;
     }
-    button:disabled { background: #9ca3af; cursor: not-allowed; }
-    button:hover:not(:disabled) { background: #4338ca; }
+    .file-pill.visible { display: flex; }
+    .file-pill-icon {
+      width: 36px; height: 36px;
+      background: var(--indigo);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .file-pill-icon svg { width: 18px; height: 18px; color: #fff; }
+    .file-pill-info { flex: 1; min-width: 0; }
+    .file-pill-name { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .file-pill-size { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+    .file-pill-remove {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--text-muted);
+      padding: 4px;
+      border-radius: 6px;
+      display: flex;
+      transition: color 0.15s, background 0.15s;
+    }
+    .file-pill-remove:hover { color: var(--red); background: var(--red-bg); }
+    .file-pill-remove svg { width: 16px; height: 16px; }
 
-    .status {
+    /* Submit button */
+    .submit-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
       margin-top: 20px;
-      padding: 12px 16px;
-      background: #fff;
-      border-radius: 8px;
-      border-left: 3px solid #4f46e5;
-      font-size: 14px;
+      padding: 14px 24px;
+      background: linear-gradient(135deg, var(--indigo) 0%, #7c3aed 100%);
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      font-family: inherit;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.15s, box-shadow 0.2s;
+      box-shadow: 0 4px 14px rgba(99,102,241,0.4);
     }
-    .status.error { border-left-color: #dc2626; color: #991b1b; }
+    .submit-btn:hover:not(:disabled) {
+      opacity: 0.92;
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(99,102,241,0.5);
+    }
+    .submit-btn:active:not(:disabled) { transform: translateY(0); }
+    .submit-btn:disabled {
+      background: #d1d5db;
+      box-shadow: none;
+      cursor: not-allowed;
+    }
+    .submit-btn svg { width: 18px; height: 18px; }
 
-    .results { margin-top: 28px; }
-    .card {
-      background: #fff;
-      border-radius: 12px;
-      padding: 24px;
-      margin-bottom: 16px;
-      border: 1px solid #e5e5e5;
+    /* ── Progress card ── */
+    .progress-card {
+      display: none;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px 24px;
+      box-shadow: var(--shadow);
+      margin-bottom: 24px;
+      animation: fadeUp 0.3s ease both;
     }
-    .card h2 { margin: 0 0 12px 0; font-size: 18px; }
-    .meta { color: #666; font-size: 13px; margin-bottom: 16px; }
-    .summary { line-height: 1.7; font-size: 15px; }
-    details { margin-top: 12px; }
-    summary { cursor: pointer; color: #4f46e5; font-size: 14px; padding: 8px 0; }
-    pre {
-      background: #f5f5f5;
-      padding: 16px;
-      border-radius: 8px;
-      overflow-x: auto;
-      font-size: 13px;
-      line-height: 1.5;
-      white-space: pre-wrap;
-      word-wrap: break-word;
-      max-height: 400px;
-      overflow-y: auto;
-    }
+    .progress-card.visible { display: block; }
 
+    .progress-header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
     .spinner {
-      display: inline-block;
-      width: 14px; height: 14px;
-      border: 2px solid #ddd;
-      border-top-color: #4f46e5;
+      width: 20px; height: 20px;
+      border: 2.5px solid #e0e7ff;
+      border-top-color: var(--indigo);
       border-radius: 50%;
-      animation: spin 0.8s linear infinite;
-      margin-right: 8px;
-      vertical-align: middle;
+      animation: spin 0.75s linear infinite;
+      flex-shrink: 0;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
+    .progress-title { font-size: 14px; font-weight: 600; color: var(--text); }
+    .progress-sub   { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+    .progress-bar-wrap {
+      height: 4px;
+      background: var(--border);
+      border-radius: 2px;
+      margin-top: 14px;
+      overflow: hidden;
+    }
+    .progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, var(--indigo), #7c3aed);
+      border-radius: 2px;
+      width: 0%;
+      transition: width 0.35s ease;
+    }
+
+    .page-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 14px;
+    }
+    .page-chip {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 4px 9px;
+      border-radius: 6px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      transition: background 0.25s, border-color 0.25s, color 0.25s;
+    }
+    .page-chip.done {
+      background: var(--indigo-light);
+      border-color: var(--indigo-mid);
+      color: var(--indigo);
+    }
+
+    /* ── Error bar ── */
+    .error-bar {
+      display: none;
+      align-items: center;
+      gap: 12px;
+      background: var(--red-bg);
+      border: 1px solid #fca5a5;
+      border-radius: var(--radius);
+      padding: 16px 20px;
+      box-shadow: var(--shadow);
+      margin-bottom: 24px;
+      font-size: 14px;
+      font-weight: 500;
+      color: #b91c1c;
+    }
+    .error-bar.visible { display: flex; }
+    .error-bar svg { width: 18px; height: 18px; flex-shrink: 0; }
+
+    /* ── Results ── */
+    .result-card {
+      background: var(--surface);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      border: 1px solid var(--border);
+      overflow: hidden;
+      margin-bottom: 20px;
+      animation: fadeUp 0.4s ease both;
+    }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .result-card:nth-child(2) { animation-delay: 0.08s; }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--border);
+      gap: 12px;
+    }
+    .card-header-left { display: flex; align-items: center; gap: 10px; }
+    .card-label {
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+    .badge {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--indigo);
+      background: var(--indigo-light);
+      border: 1px solid var(--indigo-mid);
+      padding: 2px 10px;
+      border-radius: 100px;
+    }
+    .copy-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-muted);
+      background: var(--bg);
+      border: 1px solid var(--border);
+      padding: 6px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-family: inherit;
+      transition: color 0.15s, background 0.15s, border-color 0.15s;
+    }
+    .copy-btn:hover { color: var(--indigo); border-color: var(--indigo-mid); background: var(--indigo-light); }
+    .copy-btn svg { width: 14px; height: 14px; }
+
+    .card-body { padding: 24px; }
+    .summary-text { font-size: 15px; line-height: 1.8; color: var(--text); }
+    .meta-row {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    .meta-chip {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+    .meta-chip svg { width: 14px; height: 14px; color: var(--green); }
+
+    /* Pages accordion */
+    .pages-accordion { border-top: 1px solid var(--border); }
+    .accordion-trigger {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 24px;
+      background: none;
+      border: none;
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    .accordion-trigger:hover { background: var(--bg); color: var(--indigo); }
+    .accordion-trigger svg {
+      width: 16px; height: 16px;
+      transition: transform 0.25s;
+    }
+    .accordion-trigger.open svg { transform: rotate(180deg); }
+    .accordion-body {
+      display: none;
+      padding: 0 24px 24px;
+    }
+    .accordion-body.open { display: block; }
+
+    .page-block {
+      padding: 14px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .page-block:last-child { border-bottom: none; }
+    .page-num {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--indigo);
+      margin-bottom: 6px;
+    }
+    .page-text {
+      font-size: 13px;
+      line-height: 1.7;
+      color: #374151;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    .page-text::-webkit-scrollbar { width: 4px; }
+    .page-text::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+    /* ── Footer ── */
+    footer {
+      text-align: center;
+      padding: 32px 20px;
+      font-size: 12px;
+      color: var(--text-muted);
+      border-top: 1px solid var(--border);
+    }
+    footer a { color: var(--indigo); text-decoration: none; }
   </style>
 </head>
 <body>
-  <h1>📚 Class PDF Summarizer</h1>
-  <p class="sub">LLaVA-1.5 extracts text + visuals · BART-large-CNN summarizes</p>
 
-  <label class="drop" id="drop">
-    <input type="file" id="file" accept="application/pdf" />
-    <p style="font-size: 32px; margin: 0;">📄</p>
-    <p>Drop a PDF here or <strong>click to browse</strong></p>
-    <p style="font-size: 12px; color: #999;">Max 50 MB</p>
-  </label>
+<header>
+  <div class="header-inner">
+    <div class="logo-badge">
+      <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/></svg>
+      AI-Powered
+    </div>
+    <h1>LectureLens</h1>
+    <p>Drop a class PDF and get an instant AI summary.<br>Vision extraction + hierarchical summarization.</p>
+  </div>
+</header>
 
-  <div id="filename" style="margin-top: 12px; font-size: 14px; color: #555;"></div>
-  <button id="submit" disabled>Summarize</button>
+<main>
+  <!-- Upload card -->
+  <div class="upload-card">
+    <label class="drop-zone" id="dropZone">
+      <input type="file" id="fileInput" accept="application/pdf" />
+      <div class="drop-icon">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
+        </svg>
+      </div>
+      <h3>Drop your PDF here</h3>
+      <p>or <span>click to browse</span> &nbsp;·&nbsp; Max 50 MB</p>
+    </label>
 
-  <div id="status" class="status" style="display: none;"></div>
-  <div id="results" class="results"></div>
+    <div class="file-pill" id="filePill">
+      <div class="file-pill-icon">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/>
+        </svg>
+      </div>
+      <div class="file-pill-info">
+        <div class="file-pill-name" id="pillName"></div>
+        <div class="file-pill-size" id="pillSize"></div>
+      </div>
+      <button class="file-pill-remove" id="removeFile" type="button" title="Remove file">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
 
-  <script>
-    const drop = document.getElementById('drop');
-    const fileInput = document.getElementById('file');
-    const filenameEl = document.getElementById('filename');
-    const submitBtn = document.getElementById('submit');
-    const statusEl = document.getElementById('status');
-    const resultsEl = document.getElementById('results');
+    <button class="submit-btn" id="submitBtn" disabled>
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/>
+      </svg>
+      Summarize PDF
+    </button>
+  </div>
 
-    let selectedFile = null;
+  <!-- Progress -->
+  <div class="progress-card" id="progressCard">
+    <div class="progress-header">
+      <div class="spinner"></div>
+      <div>
+        <div class="progress-title" id="progressTitle">Uploading PDF…</div>
+        <div class="progress-sub"  id="progressSub"></div>
+      </div>
+    </div>
+    <div class="progress-bar-wrap" id="progressBarWrap" style="display:none">
+      <div class="progress-bar" id="progressBar"></div>
+    </div>
+    <div class="page-chips" id="pageChips"></div>
+  </div>
 
-    function setFile(file) {
-      if (!file || file.type !== 'application/pdf') {
-        alert('Please select a PDF file.');
-        return;
+  <!-- Error -->
+  <div class="error-bar" id="errorBar">
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/>
+    </svg>
+    <span id="errorText"></span>
+  </div>
+
+  <!-- Results -->
+  <div id="results"></div>
+</main>
+
+<footer>
+  LectureLens can make mistakes. Check important info.<br>Engineered by <a href="https://asgshop.ai" target="_blank" rel="noopener noreferrer">ASG Shop<sup>TM</sup></a>
+</footer>
+
+<script>
+  const dropZone      = document.getElementById('dropZone');
+  const fileInput     = document.getElementById('fileInput');
+  const filePill      = document.getElementById('filePill');
+  const pillName      = document.getElementById('pillName');
+  const pillSize      = document.getElementById('pillSize');
+  const removeFile    = document.getElementById('removeFile');
+  const submitBtn     = document.getElementById('submitBtn');
+  const progressCard  = document.getElementById('progressCard');
+  const progressTitle = document.getElementById('progressTitle');
+  const progressSub   = document.getElementById('progressSub');
+  const progressBarWrap = document.getElementById('progressBarWrap');
+  const progressBar   = document.getElementById('progressBar');
+  const pageChipsEl   = document.getElementById('pageChips');
+  const errorBar      = document.getElementById('errorBar');
+  const errorText     = document.getElementById('errorText');
+  const resultsEl     = document.getElementById('results');
+
+  let selectedFile = null;
+
+  // ── File selection ──
+  function setFile(file) {
+    if (!file || file.type !== 'application/pdf') { showError('Please select a valid PDF file.'); return; }
+    if (file.size > 50 * 1024 * 1024) { showError('File exceeds the 50 MB limit.'); return; }
+    selectedFile = file;
+    pillName.textContent = file.name;
+    pillSize.textContent = (file.size / 1024 / 1024).toFixed(2) + ' MB';
+    filePill.classList.add('visible');
+    submitBtn.disabled = false;
+    hideError();
+  }
+
+  function clearFile() {
+    selectedFile = null;
+    fileInput.value = '';
+    filePill.classList.remove('visible');
+    submitBtn.disabled = true;
+  }
+
+  removeFile.addEventListener('click', (e) => { e.preventDefault(); clearFile(); });
+  fileInput.addEventListener('change', (e) => setFile(e.target.files[0]));
+
+  ['dragover','dragenter'].forEach((ev) =>
+    dropZone.addEventListener(ev, (e) => { e.preventDefault(); dropZone.classList.add('drag'); })
+  );
+  ['dragleave','drop'].forEach((ev) =>
+    dropZone.addEventListener(ev, (e) => { e.preventDefault(); dropZone.classList.remove('drag'); })
+  );
+  dropZone.addEventListener('drop', (e) => { const f = e.dataTransfer.files[0]; if (f) setFile(f); });
+
+  // ── Error helpers ──
+  function showError(msg) {
+    errorText.textContent = msg;
+    errorBar.classList.add('visible');
+  }
+  function hideError() { errorBar.classList.remove('visible'); }
+
+  // ── Progress helpers ──
+  function showProgress(title, sub = '') {
+    progressTitle.textContent = title;
+    progressSub.textContent   = sub;
+    progressCard.classList.add('visible');
+  }
+  function hideProgress() { progressCard.classList.remove('visible'); }
+
+  function buildChips(count) {
+    pageChipsEl.innerHTML = '';
+    for (let i = 1; i <= count; i++) {
+      const chip = document.createElement('span');
+      chip.className = 'page-chip';
+      chip.id = `chip-${i}`;
+      chip.textContent = `P${i}`;
+      pageChipsEl.appendChild(chip);
+    }
+    progressBarWrap.style.display = 'block';
+    progressBar.style.width = '0%';
+  }
+
+  function markChipDone(page, pageCount) {
+    const chip = document.getElementById(`chip-${page}`);
+    if (chip) chip.classList.add('done');
+    progressBar.style.width = `${Math.round((page / pageCount) * 100)}%`;
+    progressSub.textContent = `${page} of ${pageCount} pages extracted`;
+  }
+
+  // ── SSE stream reader ──
+  async function parseSSEStream(response, handlers) {
+    const reader  = response.body.getReader();
+    const decoder = new TextDecoder();
+    let   buf     = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+
+      const blocks = buf.split('\n\n');
+      buf = blocks.pop();
+
+      for (const block of blocks) {
+        if (!block.trim()) continue;
+        let event = 'message', data = '';
+        for (const line of block.split('\n')) {
+          if (line.startsWith('event: ')) event = line.slice(7).trim();
+          if (line.startsWith('data: '))  data  = line.slice(6).trim();
+        }
+        if (data && handlers[event]) handlers[event](JSON.parse(data));
       }
-      selectedFile = file;
-      filenameEl.textContent = `Selected: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
+    }
+  }
+
+  // ── Submit ──
+  submitBtn.addEventListener('click', async () => {
+    if (!selectedFile) return;
+
+    submitBtn.disabled = true;
+    resultsEl.innerHTML = '';
+    hideError();
+    showProgress('Uploading PDF…');
+    pageChipsEl.innerHTML = '';
+    progressBarWrap.style.display = 'none';
+
+    const formData = new FormData();
+    formData.append('pdf', selectedFile);
+
+    try {
+      const res = await fetch('/api/summarize', { method: 'POST', body: formData });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || res.statusText);
+      }
+
+      await parseSSEStream(res, {
+        pdf_loaded(d) {
+          showProgress('Extracting pages…', `0 of ${d.pageCount} pages extracted`);
+          buildChips(d.pageCount);
+        },
+        page_done(d) {
+          markChipDone(d.page, d.pageCount);
+          progressTitle.textContent = 'Extracting pages…';
+        },
+        summarizing() {
+          progressTitle.textContent = 'Summarizing…';
+          progressSub.textContent   = 'Running BART-large-CNN…';
+          progressBar.style.width   = '100%';
+        },
+        done(d) {
+          hideProgress();
+          renderResults(d);
+        },
+        error(d) { throw new Error(d.message); },
+      });
+    } catch (err) {
+      hideProgress();
+      showError('Error: ' + err.message);
+    } finally {
       submitBtn.disabled = false;
     }
+  });
 
-    fileInput.addEventListener('change', (e) => setFile(e.target.files[0]));
+  // ── Render final results ──
+  function renderResults(data) {
+    const pagesHtml = data.pages.map((p) => `
+      <div class="page-block">
+        <div class="page-num">Page ${p.page}</div>
+        <div class="page-text">${escHtml(p.text)}</div>
+      </div>
+    `).join('');
 
-    ['dragover', 'dragenter'].forEach((ev) =>
-      drop.addEventListener(ev, (e) => {
-        e.preventDefault();
-        drop.classList.add('drag');
-      })
-    );
-    ['dragleave', 'drop'].forEach((ev) =>
-      drop.addEventListener(ev, (e) => {
-        e.preventDefault();
-        drop.classList.remove('drag');
-      })
-    );
-    drop.addEventListener('drop', (e) => {
-      const file = e.dataTransfer.files[0];
-      if (file) setFile(file);
-    });
-
-    submitBtn.addEventListener('click', async () => {
-      if (!selectedFile) return;
-
-      submitBtn.disabled = true;
-      resultsEl.innerHTML = '';
-      statusEl.style.display = 'block';
-      statusEl.className = 'status';
-      statusEl.innerHTML = '<span class="spinner"></span>Processing PDF... this may take a minute or two depending on page count.';
-
-      const formData = new FormData();
-      formData.append('pdf', selectedFile);
-
-      try {
-        const res = await fetch('/api/summarize', { method: 'POST', body: formData });
-        const data = await res.json();
-
-        if (!res.ok) throw new Error(data.error || 'Request failed');
-
-        statusEl.style.display = 'none';
-        renderResults(data);
-      } catch (err) {
-        statusEl.className = 'status error';
-        statusEl.textContent = `Error: ${err.message}`;
-      } finally {
-        submitBtn.disabled = false;
-      }
-    });
-
-    function renderResults(data) {
-      const pagesHtml = data.pages
-        .map((p) => `<div style="margin-bottom: 16px;"><strong>Page ${p.page}</strong>\n${escapeHtml(p.text)}</div>`)
-        .join('');
-
-      resultsEl.innerHTML = `
-        <div class="card">
-          <h2>Summary</h2>
-          <div class="meta">${data.pageCount} pages processed</div>
-          <div class="summary">${escapeHtml(data.summary)}</div>
+    resultsEl.innerHTML = `
+      <div class="result-card">
+        <div class="card-header">
+          <div class="card-header-left">
+            <span class="card-label">Summary</span>
+            <span class="badge">${data.pageCount} pages</span>
+          </div>
+          <button class="copy-btn" onclick="copyText(this, ${JSON.stringify(data.summary).replace(/</g,'\\u003c')})">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184"/>
+            </svg>
+            Copy
+          </button>
         </div>
-        <div class="card">
-          <details>
-            <summary>View extracted text per page</summary>
-            <pre>${pagesHtml}</pre>
-          </details>
+        <div class="card-body">
+          <p class="summary-text">${escHtml(data.summary)}</p>
         </div>
-      `;
-    }
+        <div class="pages-accordion">
+          <button class="accordion-trigger" onclick="toggleAccordion(this)">
+            View extracted text per page
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"/>
+            </svg>
+          </button>
+          <div class="accordion-body">${pagesHtml}</div>
+        </div>
+      </div>
+    `;
+  }
 
-    function escapeHtml(s) {
-      return String(s)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
-    }
-  </script>
+  function toggleAccordion(btn) {
+    btn.classList.toggle('open');
+    btn.nextElementSibling.classList.toggle('open');
+  }
+
+  async function copyText(btn, text) {
+    await navigator.clipboard.writeText(text).catch(() => {});
+    btn.textContent = 'Copied!';
+    setTimeout(() => {
+      btn.innerHTML = `<svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184"/></svg>Copy`;
+    }, 2000);
+  }
+
+  function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+</script>
 </body>
 </html>

@@ -1,18 +1,22 @@
 import express from 'express';
 import multer from 'multer';
-import canvasPkg from 'canvas';
 import fs from 'fs/promises';
-import path from 'path';
 import dotenv from 'dotenv';
+import { createRequire } from 'module';
 
-// pdfjs-dist v4 needs these browser globals; provide them before the module loads
-const { DOMMatrix, ImageData, Path2D } = canvasPkg;
-globalThis.DOMMatrix ??= DOMMatrix;
-globalThis.ImageData ??= ImageData;
-globalThis.Path2D ??= Path2D;
+const _require = createRequire(import.meta.url);
 
-// Dynamic import so pdfjs-dist is evaluated after globals are set above
-const { pdfToPng } = await import('pdf-to-png-converter');
+// process.getBuiltinModule polyfill for Node.js < 21.2.0
+if (typeof process.getBuiltinModule !== 'function') {
+  process.getBuiltinModule = (id) => {
+    const name = id.startsWith('node:') ? id.slice(5) : id;
+    if (name === 'require') return _require;
+    try { return _require(name); } catch { return undefined; }
+  };
+}
+
+const { getDocument, GlobalWorkerOptions } = await import('pdfjs-dist/legacy/build/pdf.mjs');
+GlobalWorkerOptions.workerSrc = `file://${_require.resolve('pdfjs-dist/legacy/build/pdf.worker.mjs')}`;
 
 dotenv.config();
 
@@ -28,7 +32,7 @@ const CF_BASE = `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/
 const app = express();
 const upload = multer({
   dest: 'uploads/',
-  limits: { fileSize: 50 * 1024 * 1024 }, // 50 MB cap
+  limits: { fileSize: 50 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     if (file.mimetype === 'application/pdf') cb(null, true);
     else cb(new Error('Only PDF files allowed'));
@@ -54,41 +58,22 @@ async function cfRun(model, payload) {
   return data.result;
 }
 
-// ----- LLaVA: vision -> text per page -----
-async function extractFromPage(pngBuffer) {
-  const imageArray = Array.from(new Uint8Array(pngBuffer));
-  const result = await cfRun('@cf/llava-hf/llava-1.5-7b-hf', {
-    image: imageArray,
-    prompt:
-      'Transcribe all text from this slide or page exactly as it appears. ' +
-      'Include headings, bullet points, captions, and any text in diagrams or figures. ' +
-      'Briefly describe non-text visual content (charts, diagrams, images) in one sentence each. ' +
-      'Preserve the logical reading order.',
-    max_tokens: 768,
-  });
-  return result?.description?.trim() || '';
-}
-
-// ----- BART: summarization with hierarchical chunking -----
-// BART caps around 1024 input tokens (~3500-4000 chars). We chunk and re-summarize.
+// ----- BART: hierarchical summarization -----
 const CHUNK_CHARS = 3500;
 
-async function summarizeChunk(text, maxLen = 250) {
+async function summarizeChunk(text, { maxLen = 400, minLen = 120 } = {}) {
   const result = await cfRun('@cf/facebook/bart-large-cnn', {
     input_text: text,
     max_length: maxLen,
+    min_length: minLen,
   });
   return result?.summary?.trim() || '';
 }
 
 async function summarizeText(text) {
   if (!text.trim()) return '';
+  if (text.length <= CHUNK_CHARS) return summarizeChunk(text, { maxLen: 600, minLen: 200 });
 
-  if (text.length <= CHUNK_CHARS) {
-    return summarizeChunk(text, 300);
-  }
-
-  // Split into chunks at paragraph boundaries when possible
   const chunks = [];
   let buf = '';
   for (const para of text.split(/\n\n+/)) {
@@ -101,47 +86,19 @@ async function summarizeText(text) {
   }
   if (buf) chunks.push(buf);
 
-  // First pass: summarize each chunk
   const partials = [];
-  for (const chunk of chunks) {
-    partials.push(await summarizeChunk(chunk, 200));
-  }
+  for (const chunk of chunks) partials.push(await summarizeChunk(chunk, { maxLen: 400, minLen: 120 }));
 
-  // Second pass: combine partials and summarize again (recursively if still too long)
   const combined = partials.join('\n\n');
-  if (combined.length <= CHUNK_CHARS) {
-    return summarizeChunk(combined, 400);
-  }
-  return summarizeText(combined); // recurse for very large docs
+  if (combined.length <= CHUNK_CHARS) return summarizeChunk(combined, { maxLen: 700, minLen: 250 });
+  return summarizeText(combined);
 }
 
-// ----- Main pipeline -----
-async function processPdf(pdfPath) {
-  const pages = await pdfToPng(pdfPath, {
-    viewportScale: 2.0, // 2x for clearer text recognition
-    outputFolder: undefined, // keep in memory
-  });
-
-  const pageTexts = [];
-  for (let i = 0; i < pages.length; i++) {
-    const text = await extractFromPage(pages[i].content);
-    pageTexts.push({ page: i + 1, text });
-    console.log(`  ✓ Page ${i + 1}/${pages.length} extracted (${text.length} chars)`);
-  }
-
-  const fullText = pageTexts
-    .map((p) => `--- Page ${p.page} ---\n${p.text}`)
-    .join('\n\n');
-
-  console.log(`  Summarizing ${fullText.length} chars...`);
-  const summary = await summarizeText(fullText);
-
-  return {
-    pageCount: pages.length,
-    pages: pageTexts,
-    fullText,
-    summary,
-  };
+// ----- PDF text extraction -----
+async function extractPageText(pdfDoc, pageNum) {
+  const page    = await pdfDoc.getPage(pageNum);
+  const content = await page.getTextContent();
+  return content.items.map((item) => item.str).join(' ').trim();
 }
 
 // ----- Routes -----
@@ -153,14 +110,38 @@ app.post('/api/summarize', upload.single('pdf'), async (req, res) => {
   const pdfPath = req.file.path;
   console.log(`\n[${new Date().toISOString()}] Processing ${req.file.originalname}`);
 
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+
+  const send = (event, data) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+
   try {
-    const result = await processPdf(pdfPath);
-    res.json(result);
-    console.log(`  ✓ Done — summary: ${result.summary.length} chars`);
+    const pdfData = new Uint8Array(await fs.readFile(pdfPath));
+    const pdfDoc  = await getDocument({ data: pdfData }).promise;
+    const pageCount = pdfDoc.numPages;
+    send('pdf_loaded', { pageCount });
+
+    const pageTexts = [];
+    for (let i = 1; i <= pageCount; i++) {
+      const text = await extractPageText(pdfDoc, i);
+      pageTexts.push({ page: i, text });
+      console.log(`  ✓ Page ${i}/${pageCount} extracted (${text.length} chars)`);
+      send('page_done', { page: i, pageCount, text });
+    }
+
+    send('summarizing', {});
+    const fullText = pageTexts.map((p) => `--- Page ${p.page} ---\n${p.text}`).join('\n\n');
+    const summary  = await summarizeText(fullText);
+
+    send('done', { pageCount, pages: pageTexts, fullText, summary });
+    console.log(`  ✓ Done — summary: ${summary.length} chars`);
   } catch (err) {
     console.error('  ✗ Error:', err.message);
-    res.status(500).json({ error: err.message });
+    send('error', { message: err.message });
   } finally {
+    res.end();
     fs.unlink(pdfPath).catch(() => {});
   }
 });
